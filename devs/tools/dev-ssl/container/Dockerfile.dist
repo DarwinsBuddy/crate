@@ -1,0 +1,35 @@
+# CrateDB from a local distribution tarball (HTTP/3 dev builds).
+# Build context: tmp/crate/ (cli.sh copies the distribution here).
+#
+# Crate listens on :4200 inside the container (non-root, no caps).
+# cli.sh publishes host :443 → :4200 for Chrome Alt-Svc / HTTP/3 e2e tests.
+
+# glibc base for the jlink runtime in jdk/ (cli.sh installs it before build).
+# No RUN here — rootless podman/crun often cannot execute build steps (crun permission denied).
+FROM docker.io/eclipse-temurin:26-jre
+
+COPY --chown=1000:1000 . /crate
+WORKDIR /crate
+
+USER 1000
+
+# /crate/logs from the tarball may not be writable for UID 1000 under rootful podman.
+ENV CRATE_DISABLE_GC_LOGGING=1
+
+EXPOSE 4200/tcp
+EXPOSE 4200/udp
+
+CMD ["/crate/bin/crate", \
+  "-Cdiscovery.type=single-node", \
+  "-Cpath.data=/tmp/crate-data", \
+  "-Cpath.logs=/tmp/crate-logs", \
+  "-Cnetwork.host=0.0.0.0", \
+  "-Chttp.port=4200", \
+  "-Chttp.quic.enabled=true", \
+  "-Cssl.http.enabled=true", \
+  "-Cssl.keystore_filepath=/crate/config/keystore.p12", \
+  "-Cssl.keystore_password=keystorePassword", \
+  "-Cssl.keystore_key_password=keystorePassword", \
+  "-Cauth.host_based.config.10.user=crate", \
+  "-Cauth.host_based.config.10.address=0.0.0.0/0", \
+  "-Cauth.host_based.config.10.method=trust"]

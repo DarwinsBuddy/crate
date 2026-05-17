@@ -1,0 +1,37 @@
+# Local HTTPS + HTTP/3. Crate listens on :4200 in the container.
+#
+#   dev-ssl generate
+#   dev-ssl container up
+#
+# Trust ../tmp/ca.pem, open https://crate.local:${PUBLISH_PORT}/ (or your --hostname)
+
+services:
+  crate:
+    image: ${IMAGE:-crate-http3-dev}
+    container_name: crate-http3
+    hostname: crate-http3
+    user: "${CONTAINER_UID:-1000}:${CONTAINER_GID:-1000}"
+    ports:
+      - "${PUBLISH_PORT:-8443}:4200/tcp"
+      - "${PUBLISH_PORT:-8443}:4200/udp"
+    environment:
+      CRATE_HEAP_SIZE: 512m
+      CRATE_DISABLE_GC_LOGGING: "1"
+    volumes:
+      - ../tmp/keystore.p12:/config/keystore.p12:ro
+    command:
+      - crate
+      - -Cdiscovery.type=single-node
+      - -Cpath.data=/tmp/crate-data
+      - -Cpath.logs=/tmp/crate-logs
+      - -Cnetwork.host=0.0.0.0
+      - -Chttp.port=4200
+      - -Chttp.quic.alt_svc.port=${PUBLISH_PORT:-8443}
+      - -Chttp.quic.enabled=true
+      - -Cssl.http.enabled=true
+      - -Cssl.keystore_filepath=/config/keystore.p12
+      - -Cssl.keystore_password=keystorePassword
+      - -Cssl.keystore_key_password=keystorePassword
+      - -Cauth.host_based.config.10.user=crate
+      - -Cauth.host_based.config.10.address=0.0.0.0/0
+      - -Cauth.host_based.config.10.method=trust
